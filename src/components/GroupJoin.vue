@@ -49,6 +49,14 @@
             <v-text-field v-if="authenticationState == 'authorizationStateWaitPassword'" v-model="password"
               label="password" type="password" outlined placeholder="Enter password"
               :prepend-inner-icon="authFlowStep >= 4 ? 'mdi-check' : ''" @keypress.enter="nextStep()" />
+
+            <v-row class="text-left">
+              <v-col cols="12">
+                <v-alert v-if="errorMessage.length" class="my-4" type="error" title="something is wrong" variant="tonal">
+                  {{ errorMessage }}
+                </v-alert>
+              </v-col>
+            </v-row>
           </v-col>
         </v-row>
 
@@ -94,14 +102,21 @@
           </v-row>
 
           <v-row justify="center">
+            <!-- <v-col cols="12" class="justify-center"> -->
             <v-btn class="mb-2" color="primary" depressed large rounded :loading="loading" @click="joinGroups">
               {{ 'Join ' + groups.length + ' Group' + (groups.length == 1 ? '' : 's') }}
             </v-btn>
-            <v-progress-linear v-if="processedInvites > 0" v-model="processedInvites" :max="groups.length"
-              color="light-blue" height="20" striped class="my-2">
+            <v-progress-linear v-if="processedInvites > 0 && processedInvites != groups.length" v-model="processedInvites"
+              :max="groups.length" color="light-blue" height="20" striped class="my-2">
               <template v-slot:default="{ value }">
                 <strong>{{ processedInvites }} / {{ groups.length }}</strong>
               </template></v-progress-linear>
+          </v-row>
+          <v-row justify="center">
+            <v-col cols="4">
+              <v-alert v-if="processedInvites > 0 && processedInvites == groups.length" type="success"
+                :title="`${processedInvites}/${groups.length} groups joined`"></v-alert>
+            </v-col>
           </v-row>
 
           <v-row justify="center">
@@ -122,11 +137,11 @@
         </v-col>
 
         <v-col cols="12" md="4">
-          <v-textarea v-model="groupsInput" label="Group links/invites" outlined placeholder="Enter group invites"
+          <v-textarea v-model="groupsInput" label="Group links/invites" outlined placeholder="Enter group links and invites into this text area, 1 per line"
             rows="15" class="mt-2 text-xs" required elevation="8" />
         </v-col>
         <v-col cols="12" md="5">
-          <v-card v-if="groups.length" class="mx-auto" max-width="600" color="blue-lighten-1" variant="outlined"
+          <v-card v-if="groups.length" class="mx-auto pb-4" max-width="600" color="blue-lighten-1" variant="outlined"
             elevation="8">
             <v-card-title>{{ groups.length }} group{{ groups.length == 1 ? '' : 's' }} identified</v-card-title>
             <v-list-item v-for="(item, i) in groups" :key="i" :value="item.invite" color="primary">
@@ -161,8 +176,8 @@
         </v-col>
 
         <v-col cols="12" md="3">
-          <v-card v-if="invalidGroups.length" class="mx-auto" max-width="500" color="red-lighten-1" variant="outlined"
-            elevation="8">
+          <v-card v-if="invalidGroups.length" class="mx-auto pb-4" max-width="500" color="red-lighten-1"
+            variant="outlined" elevation="8">
             <v-card-title>{{ invalidGroups.length }} invalid group{{ invalidGroups.length == 1 ? '' : 's' }}
             </v-card-title>
             <v-list-item v-for="(item, i) in invalidGroups" :key="i" :value="item" color="primary">
@@ -170,14 +185,14 @@
             </v-list-item>
           </v-card>
         </v-col>
-          <v-row justify="center my-2" v-if="groups.length">
-            <v-btn class="" prepend-icon="mdi-content-copy" color="blue-grey" depressed large rounded @click="shareInvites">
-              Copy valid links
-            </v-btn>
-            <v-snackbar v-model="copiedSnackbar">
-              copied to clipboard
-            </v-snackbar>
-          </v-row>
+        <v-row justify="center my-2" v-if="groups.length">
+          <v-btn class="" prepend-icon="mdi-content-copy" color="blue-grey" depressed large rounded @click="shareInvites">
+            Copy valid links
+          </v-btn>
+          <v-snackbar v-model="copiedSnackbar">
+            copied to clipboard
+          </v-snackbar>
+        </v-row>
       </v-row>
       <v-divider class="mt-6"></v-divider>
     </v-responsive>
@@ -186,6 +201,10 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
+
+const params = new Proxy(new URLSearchParams(window.location.search), {
+  get: (searchParams, prop) => searchParams.get(prop),
+});
 
 const apiId = ref('')
 const apiHash = ref('')
@@ -196,8 +215,9 @@ const authenticationState = ref('Not started')
 const buttonState = ref('start auth')
 const authFlowStep = ref(0)
 const muteJoinedGroups = ref(true)
-const groupsInput = ref(``)
+const groupsInput = ref(params.links?.replaceAll(";", "\n") || ``)
 const loading = ref(false)
+const errorMessage = ref("")
 
 const joinedChatIds = ref([])
 const chatExceptions = ref(new Map())
@@ -293,6 +313,7 @@ const upsert = (theMap, key, newProperties) => {
 }
 
 const nextStep = () => {
+  errorMessage.value = ""
   if (authenticationState.value == 'authorizationStateWaitTdlibParameters') {
     startAuth();
   }
@@ -329,6 +350,10 @@ const startAuth = () => {
     // optimize_database_storage: true,
   }).then(() => {
     loading.value = false;
+  }).catch((err) => {
+    console.log('setTdlibParameters error', err)
+    loading.value = false;
+    errorMessage.value = err.message
   })
 }
 
@@ -339,6 +364,10 @@ const sendPhone = () => {
     phone_number: phoneNumber.value,
   }).then(() => {
     loading.value = false;
+  }).catch((err) => {
+    console.log('setAuthenticationPhoneNumber error', err)
+    loading.value = false;
+    errorMessage.value = err.message
   })
 }
 
@@ -349,6 +378,10 @@ const checkCode = () => {
     code: confirmationCode.value,
   }).then(() => {
     loading.value = false;
+  }).catch((err) => {
+    console.log('setAuthenticationPhoneNumber error', err)
+    loading.value = false;
+    errorMessage.value = err.message
   })
 }
 
@@ -359,6 +392,10 @@ const checkPassword = () => {
     password: password.value,
   }).then(() => {
     loading.value = false;
+  }).catch((err) => {
+    console.log('setAuthenticationPhoneNumber error', err)
+    loading.value = false;
+    errorMessage.value = err.message
   })
 }
 
@@ -372,7 +409,7 @@ const clearStorage = () => {
 const shareInvites = () => {
   const url = new URL(window.location.href);
   // url.searchParams.set('links', groups.map((g) => `${g.invite}` + g.id?`,${g.invite}`:'').join('\n'))
-  navigator.clipboard.writeText(groups.value.map((g) => `${g.invite}` + (g.id?`,${g.id}`:'')).join('\n'))
+  navigator.clipboard.writeText(groups.value.map((g) => `${g.invite}` + (g.id ? `,${g.id}` : '')).join('\n'))
   copiedSnackbar.value = true
 }
 
@@ -429,6 +466,7 @@ const joinGroups = () => {
       }
     }
     loading.value = false;
+    loadAllChats()
   })
 }
 
