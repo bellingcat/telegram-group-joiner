@@ -1,10 +1,14 @@
 # Telegram Group Joiner
 A web tool to automate joining groups, useful when you're entering a new research topic and have a start point of Telegram groups that are important to monitor. If you have private channel invites, those work too.
 
-https://github.com/bellingcat/telegram-group-joiner
 
-![screenshot](https://github.com/bellingcat/telegram-group-joiner/assets/19508417/5e18ab3c-28a7-424f-a297-fb705b3358b2)
+<h3 align="center">
+  <a href="https://github.com/bellingcat/telegram-group-joiner">github.com/bellingcat/telegram-group-joiner</a>
+</h3>
 
+<p align="center">
+  <img src="https://github.com/bellingcat/telegram-group-joiner/assets/19508417/5e18ab3c-28a7-424f-a297-fb705b3358b2" width="500"/>
+</p>
 
 ### Development
 
