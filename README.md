@@ -8,7 +8,11 @@ A web tool to automate joining groups, useful when you're entering a new researc
 
 <p align="center">
   <!-- <img src="https://github.com/bellingcat/telegram-group-joiner/assets/19508417/5e18ab3c-28a7-424f-a297-fb705b3358b2" width="500"/> -->
-  <video src="vid.mp4" width="500" controls autoplay/>
+  <video src="vid.mp4" width="500" height="400" controls>
+
+  [![video preview](vid.mp4)](vid.mp4)
+
+    
 </p>
 
 You can preload a URL with links if you separate them by `;` in the URL using `links=` parameter:
