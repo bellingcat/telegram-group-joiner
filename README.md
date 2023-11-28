@@ -3,12 +3,24 @@ A web tool to automate joining groups, useful when you're entering a new researc
 
 
 <h3 align="center">
-  <a href="https://github.com/bellingcat/telegram-group-joiner">github.com/bellingcat/telegram-group-joiner</a>
+  <a href="https://bellingcat.github.io/telegram-group-joiner/">bellingcat.github.io/telegram-group-joiner/</a>
 </h3>
 
 <p align="center">
-  <img src="https://github.com/bellingcat/telegram-group-joiner/assets/19508417/5e18ab3c-28a7-424f-a297-fb705b3358b2" width="500"/>
+  <!-- <img src="https://github.com/bellingcat/telegram-group-joiner/assets/19508417/5e18ab3c-28a7-424f-a297-fb705b3358b2" width="500"/> -->
+  <video src="vid.mp4" width="500" controls autoplay/>
 </p>
+
+You can preload a URL with links if you separate them by `;` in the URL using `links=` parameter:
+
+```bash
+# these 2 links
+https://t.me/bellingcat
+https://t.me/+privateInvite,123id
+# should be put into the same line and separated by `;`
+https://t.me/bellingcat;https://t.me/+privateInvite,123id
+```
+resulting in https://bellingcat.github.io/telegram-group-joiner/?links=https://t.me/bellingcat;https://t.me/+privateInvite,123id
 
 ### Development
 
