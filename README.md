@@ -26,6 +26,7 @@ https://t.me/bellingcat;https://t.me/+privateInvite,123id
 resulting in https://bellingcat.github.io/telegram-group-joiner/?links=https://t.me/bellingcat;https://t.me/+privateInvite,123id
 
 ### Development
+The project uses tdlib for a full client-side telegram API experience, documentation of common methods is [here](https://core.telegram.org/tdlib/docs/classtd_1_1td__api_1_1_function.html).
 
 ```bash
 # install dependencies
@@ -38,3 +39,5 @@ yarn dev
 yarn build
 ```
 The project is auto-deployed to GitHub pages when changes to main are pushed.
+
+(group ie channel ie chat)
