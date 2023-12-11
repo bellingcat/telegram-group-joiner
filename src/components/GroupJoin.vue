@@ -137,8 +137,9 @@
         </v-col>
 
         <v-col cols="12" md="4">
-          <v-textarea v-model="groupsInput" label="Group links/invites" outlined placeholder="Enter group links and invites into this text area, 1 per line"
-            rows="15" class="mt-2 text-xs" required elevation="8" />
+          <v-textarea v-model="groupsInput" label="Group links/invites" outlined
+            placeholder="Enter group links and invites into this text area, 1 per line" rows="15" class="mt-2 text-xs"
+            required elevation="8" />
         </v-col>
         <v-col cols="12" md="5">
           <v-card v-if="groups.length" class="mx-auto pb-4" max-width="600" color="blue-lighten-1" variant="outlined"
@@ -429,6 +430,7 @@ const loadAllChats = () => {
         '@type': 'getChats',
         limit: 50000,
       }).then((res) => {
+        console.log(`loaded ${res.chat_ids.length} chats`)
         joinedChatIds.value = [...joinedChatIds.value, ...res.chat_ids]
         resolve()
       }).catch((err) => {
@@ -467,6 +469,10 @@ const joinGroups = () => {
     }
     loading.value = false;
     loadAllChats()
+  }).catch(async (err) => {
+    console.log('loadAllChats error', err)
+    await handleRateLimit(err)
+    loading.value = false;
   })
 }
 
@@ -481,31 +487,38 @@ const joinPrivateGroup = async (group) => {
   await client.send({
     '@type': 'checkChatInviteLink',
     invite_link: group.invite,
-  }).then((res) => {
+  }).then(async (res) => {
     console.log('checkChatInviteLink', res)
+    const rateLimit = await handleRateLimit(res);
+    if(rateLimit) {
+      return
+    }
     upsert(loadedGroups.value, group.invite, { name: res.title })
   })
 
   try {
+    console.log(`joinChatByInviteLink ${group.invite}`)
     await client.send({
       '@type': 'joinChatByInviteLink',
       invite_link: group.invite,
     })
   } catch (res) { // this method call fails by default... so we catch =
     console.log('joinChatByInviteLink', res)
-    await handleRateLimit(res)
+    const rateLimit = await handleRateLimit(res);
     console.log(res.message)
-    if (res.message == "INVITE_REQUEST_SENT") {
-      upsert(loadedGroups.value, group.invite, { status: 'requested' })
-    } else if (res.message == "USER_ALREADY_PARTICIPANT") {
-      upsert(loadedGroups.value, group.invite, { status: 'joined' })
-    } else if (res.message == "INVITE_HASH_EXPIRED") {
-      upsert(loadedGroups.value, group.invite, { status: 'expired' })
-    } else {
-      chatExceptions.value.set(group.id, res.message)
-    }
-    if (muteJoinedGroups.value) {
-      muteJoinedGroup(group)
+    if (!rateLimit) {
+      if (res.message == "INVITE_REQUEST_SENT") {
+        upsert(loadedGroups.value, group.invite, { status: 'requested' })
+      } else if (res.message == "USER_ALREADY_PARTICIPANT") {
+        upsert(loadedGroups.value, group.invite, { status: 'joined' })
+      } else if (res.message == "INVITE_HASH_EXPIRED") {
+        upsert(loadedGroups.value, group.invite, { status: 'expired' })
+      } else {
+        chatExceptions.value.set(group.id, res.message)
+      }
+      if (muteJoinedGroups.value) {
+        muteJoinedGroup(group)
+      }
     }
   }
 }
@@ -566,7 +579,9 @@ const handleRateLimit = async (res) => {
     console.log(`sleeping for ${sleepSeconds.value} seconds`)
     await new Promise((resolve) => setTimeout(resolve, 1000 * sleepSeconds.value));
     processedInvites.value--; //go back so it can be retried
+    return true
   }
+  return false
 }
 
 const muteJoinedGroup = async (group) => {
