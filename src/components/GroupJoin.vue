@@ -493,7 +493,7 @@ const joinPrivateGroup = async (group) => {
     })
   } catch (res) { // this method call fails by default... so we catch =
     console.log('joinChatByInviteLink', res)
-    handleRateLimit(res)
+    await handleRateLimit(res)
     console.log(res.message)
     if (res.message == "INVITE_REQUEST_SENT") {
       upsert(loadedGroups.value, group.invite, { status: 'requested' })
@@ -532,7 +532,7 @@ const joinPublicGroup = async (group) => {
   }
 
   try {
-    console.log(`chatd_id: ${group.id}`)
+    console.log(`chat_id: ${group.id}`)
     await client.send({
       '@type': 'joinChat',
       chat_id: group.id,
@@ -546,13 +546,15 @@ const joinPublicGroup = async (group) => {
     })
   } catch (res) { // this method call fails by default... so we catch
     console.log('joinChat', res)
-    handleRateLimit(res)
+    await handleRateLimit(res)
     console.log(res.message)
   }
 }
 
 const handleRateLimit = async (res) => {
-  if (res.code == 429) {
+  if (res.code == 429 || res?.message?.includes('Too Many Requests: retry after')) {
+    console.log(`detected rate limit:`)
+    console.log(res)
     // flood wait error, need to sleep for XYZ seconds
     sleepSeconds.value = Number.parseInt(res.message.match(/\d+/)?.[0]);
     const countDown = setInterval(() => {
