@@ -158,7 +158,7 @@
               </template>
               <v-list-item-content>
                 <v-list-item-title>
-                  <a :href="item.invite" target="_blank">{{ item.invite }}</a>
+                  {{ i+1 }} - <a :href="item.invite" target="_blank">{{ item.invite }}</a>
                 </v-list-item-title>
                 <v-list-item-subtitle style="font-size:16px">
                   <p v-if="item.name?.length" style="color:black">{{ item.name }}</p>
@@ -234,11 +234,15 @@ new TdClient({}).send({ '@type': 'close' });
 let client = new TdClient({});
 
 
+const isGroupJoined = (id) => {
+  return joinedChatIds.value.includes(`${id}`) || joinedChatIds.value.includes(`-100${id}`)
+}
+
 const groups = computed(() => {
   return groupsInput.value.split('\n').map((line) => {
     const [invite, id] = line.split(',')
     let status = 'pending';
-    if (joinedChatIds.value?.includes(id) || joinedChatIds.value?.includes(`-100${invite}`)) {
+    if (isGroupJoined(id)) {
       status = 'joined'
     } else if (chatExceptions.value.has(id)) {
       status = chatExceptions.value.get(id)
@@ -251,6 +255,7 @@ const groups = computed(() => {
       ...(loadedGroups.value.has(invite) ? loadedGroups.value.get(invite) : {})
     }
   }).filter((group) => group.invite.length && group.invite.match(/(?:t|telegram)\.(?:me|dog)\/(joinchat\/|\+)?([\w-]+)/))
+    .filter((group) => group.invite.trim().startsWith("https://"))
     .filter((group) => !group.invite.includes("t.me/c/"))
     .filter((group, i, arr) => arr.findIndex((g) => g.invite == group.invite) == i)
 })
@@ -408,8 +413,6 @@ const clearStorage = () => {
 }
 
 const shareInvites = () => {
-  const url = new URL(window.location.href);
-  // url.searchParams.set('links', groups.map((g) => `${g.invite}` + g.id?`,${g.invite}`:'').join('\n'))
   navigator.clipboard.writeText(groups.value.map((g) => `${g.invite}` + (g.id ? `,${g.id}` : '')).join('\n'))
   copiedSnackbar.value = true
 }
@@ -430,8 +433,8 @@ const loadAllChats = () => {
         '@type': 'getChats',
         limit: 50000,
       }).then((res) => {
-        console.log(`loaded ${res.chat_ids.length} chats`)
-        joinedChatIds.value = [...joinedChatIds.value, ...res.chat_ids]
+        console.log(`loaded ${res.chat_ids.length} chats: ${res.chat_ids}`)
+        joinedChatIds.value = [...joinedChatIds.value, ...res.chat_ids.map(id=>`${id}`)]
         resolve()
       }).catch((err) => {
         console.log('getChats error', err)
@@ -440,6 +443,7 @@ const loadAllChats = () => {
     })
   })
 }
+
 
 /**
  * Join groups
@@ -450,15 +454,25 @@ const joinGroups = () => {
   loading.value = true;
 
   loadAllChats().then(async () => {
-    // rest the status for all loadedGroups entries
+    // reset the status for all loadedGroups entries
+    console.log(groups.value)
     loadedGroups.value.forEach((_, group) => {
       upsert(loadedGroups.value, group, { status: 'pending' })
+      if (isGroupJoined(group.id)) {
+        upsert(loadedGroups.value, group, { status: 'joined' })
+      }
     })
+    console.log(groups.value)
     chatExceptions.value.clear()
     for (processedInvites.value = 0; processedInvites.value < groups.value.length; processedInvites.value++) {
       let group = groups.value[processedInvites.value];
       if (group.status == 'joined') {
         console.log(`already joined ${group.invite}`)
+        continue
+      }
+      if (isGroupJoined(group.id)) {
+        console.log(`already joined ${group.invite} id=${group.id}`)
+        upsert(loadedGroups.value, group.invite, { status: "joined" })
         continue
       }
       if (group.type == 'private') {
@@ -484,17 +498,26 @@ const joinGroups = () => {
  * likely leads to flood error and will wait accordingly
  */
 const joinPrivateGroup = async (group) => {
-  await client.send({
+  const checkRateLimit = await client.send({
     '@type': 'checkChatInviteLink',
     invite_link: group.invite,
   }).then(async (res) => {
     console.log('checkChatInviteLink', res)
     const rateLimit = await handleRateLimit(res);
-    if(rateLimit) {
-      return
+    if (rateLimit) {
+      return true
     }
     upsert(loadedGroups.value, group.invite, { name: res.title })
+    group.id = res.chat_id;
+    upsert(loadedGroups.value, group.invite, { id: res.chat_id })
   })
+  if (checkRateLimit) return
+
+  if (isGroupJoined(group.id)) {
+    console.log(`already joined ${group.invite}`)
+    upsert(loadedGroups.value, group.invite, { status: "joined" })
+    return
+  }
 
   try {
     console.log(`joinChatByInviteLink ${group.invite}`)
@@ -527,15 +550,20 @@ const joinPublicGroup = async (group) => {
   console.log('joinPublicGroup', group)
   // call searchPublicChat and then call joinChat
   if (!group.id?.length) {
-    await client.send({
+    const checkRateLimit = await client.send({
       '@type': 'searchPublicChat',
       username: group.invite.split('/').pop(),
-    }).then((res) => {
+    }).then(async (res) => {
       console.log('searchPublicChat', res)
+      const rateLimit = await handleRateLimit(res);
+      if (rateLimit) {
+        return true
+      }
       upsert(loadedGroups.value, group.invite, { name: res.title })
       group.id = res.id;
       upsert(loadedGroups.value, group.invite, { id: res.id })
     })
+    if (checkRateLimit) return
   }
 
   if (joinedChatIds.value.includes(group.id)) {
